@@ -101,10 +101,14 @@ async function fetchResponsesMessage(body: any) {
   return completion;
 }
 
+function getRandomInt(max: number) {
+  return Math.floor(Math.random() * max);
+}
+
 function getToolResponse(fName: string, args: any) {
   switch (fName) {
     case "checkBusTimetable":
-      return `${randomInt(5) + 2} minutes`;
+      return `${getRandomInt(5) + 2} minutes`;
     default:
       return { result: true };
   }
