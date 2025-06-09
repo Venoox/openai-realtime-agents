@@ -1,13 +1,6 @@
-import { RealtimeItem, tool } from '@openai/agents/realtime';
+import { RealtimeItem, tool } from "@openai/agents/realtime";
 
-
-import {
-  exampleAccountInfo,
-  examplePolicyDocs,
-  exampleStoreLocations,
-} from './sampleData';
-
-export const supervisorAgentInstructions = `You are an expert customer service supervisor agent, tasked with providing real-time guidance to a more junior agent that's chatting directly with the customer. You will be given detailed response instructions, tools, and the full conversation history so far, and you should create a correct next message that the junior agent can read directly.
+export const supervisorAgentInstructions = `You are an expert bus call center supervisor agent, tasked with providing real-time guidance to a more junior agent that's chatting directly with the customer. You will be given detailed response instructions, tools, and the full conversation history so far, and you should create a correct next message that the junior agent can read directly.
 
 # Instructions
 - You can provide an answer directly, or call a tool first and then answer the question
@@ -15,10 +8,10 @@ export const supervisorAgentInstructions = `You are an expert customer service s
 - Your message will be read verbatim by the junior agent, so feel free to use it like you would talk directly to the user
   
 ==== Domain-Specific Agent Instructions ====
-You are a helpful customer service agent working for NewTelco, helping a user efficiently fulfill their request while adhering closely to provided guidelines.
+You are a helpful bus call center agent working for LPP, helping a user efficiently fulfill their request while adhering closely to provided guidelines.
 
 # Instructions
-- Always greet the user at the start of the conversation with "Hi, you've reached NewTelco, how can I help you?"
+- Always greet the user at the start of the conversation with "Dober dan, poklicali ste klicni center LPP, kako vam lahko pomagam?"
 - Always call a tool before answering factual questions about the company, its offerings or products, or a user's account. Only use retrieved context and never rely on your own knowledge for any of these questions.
 - Escalate to a human if the user requests.
 - Do not discuss prohibited topics (politics, religion, controversial current events, medical, legal, or financial advice, personal conversations, internal company operations, or criticism of any people or company).
@@ -62,118 +55,55 @@ You are a helpful customer service agent working for NewTelco, helping a user ef
 - Only provide information about this company, its policies, its products, or the customer's account, and only if it is based on information provided in context. Do not answer questions outside this scope.
 
 # Example (tool call)
-- User: Can you tell me about your family plan options?
-- Supervisor Assistant: lookup_policy_document(topic="family plan options")
-- lookup_policy_document(): [
-  {
-    id: "ID-010",
-    name: "Family Plan Policy",
-    topic: "family plan options",
-    content:
-      "The family plan allows up to 5 lines per account. All lines share a single data pool. Each additional line after the first receives a 10% discount. All lines must be on the same account.",
-  },
-  {
-    id: "ID-011",
-    name: "Unlimited Data Policy",
-    topic: "unlimited data",
-    content:
-      "Unlimited data plans provide high-speed data up to 50GB per month. After 50GB, speeds may be reduced during network congestion. All lines on a family plan share the same data pool. Unlimited plans are available for both individual and family accounts.",
-  },
-];
-- Supervisor Assistant:
-# Message
-Yes we do—up to five lines can share data, and you get a 10% discount for each new line [Family Plan Policy](ID-010).
 
-# Example (Refusal for Unsupported Request)
-- User: Can I make a payment over the phone right now?
-- Supervisor Assistant:
-# Message
-I'm sorry, but I'm not able to process payments over the phone. Would you like me to connect you with a human representative, or help you find your nearest NewTelco store for further assistance?
 `;
 
 export const supervisorAgentTools = [
   {
     type: "function",
-    name: "lookupPolicyDocument",
-    description:
-      "Tool to look up internal documents and policies by topic or keyword.",
+    name: "checkBusTimetable",
+    description: "Tool to look up when the next bus arrives at a given stop.",
     parameters: {
       type: "object",
       properties: {
-        topic: {
+        busStop: {
           type: "string",
-          description:
-            "The topic or keyword to search for in company policies or documents.",
+          description: "The name of the bus stop to look up. It needs to be an exact match.",
+        },
+        busLine: {
+          type: "string",
+          description: "The bus line to look up. It can be a number optionally followed by a letter (e.g., 5A, 10B).",
         },
       },
-      required: ["topic"],
-      additionalProperties: false,
-    },
-  },
-  {
-    type: "function",
-    name: "getUserAccountInfo",
-    description:
-      "Tool to get user account information. This only reads user accounts information, and doesn't provide the ability to modify or delete any values.",
-    parameters: {
-      type: "object",
-      properties: {
-        phone_number: {
-          type: "string",
-          description:
-            "Formatted as '(xxx) xxx-xxxx'. MUST be provided by the user, never a null or empty string.",
-        },
-      },
-      required: ["phone_number"],
-      additionalProperties: false,
-    },
-  },
-  {
-    type: "function",
-    name: "findNearestStore",
-    description:
-      "Tool to find the nearest store location to a customer, given their zip code.",
-    parameters: {
-      type: "object",
-      properties: {
-        zip_code: {
-          type: "string",
-          description: "The customer's 5-digit zip code.",
-        },
-      },
-      required: ["zip_code"],
+      required: ["busStop", "busLine"],
       additionalProperties: false,
     },
   },
 ];
 
 async function fetchResponsesMessage(body: any) {
-  const response = await fetch('/api/responses', {
-    method: 'POST',
+  const response = await fetch("/api/responses", {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     // Preserve the previous behaviour of forcing sequential tool calls.
     body: JSON.stringify({ ...body, parallel_tool_calls: false }),
   });
 
   if (!response.ok) {
-    console.warn('Server returned an error:', response);
-    return { error: 'Something went wrong.' };
+    console.warn("Server returned an error:", response);
+    return { error: "Something went wrong." };
   }
 
   const completion = await response.json();
   return completion;
 }
 
-function getToolResponse(fName: string) {
+function getToolResponse(fName: string, args: any) {
   switch (fName) {
-    case "getUserAccountInfo":
-      return exampleAccountInfo;
-    case "lookupPolicyDocument":
-      return examplePolicyDocs;
-    case "findNearestStore":
-      return exampleStoreLocations;
+    case "checkBusTimetable":
+      return "5 minutes";
     default:
       return { result: true };
   }
@@ -183,36 +113,32 @@ function getToolResponse(fName: string) {
  * Iteratively handles function calls returned by the Responses API until the
  * assistant produces a final textual answer. Returns that answer as a string.
  */
-async function handleToolCalls(
-  body: any,
-  response: any,
-  addBreadcrumb?: (title: string, data?: any) => void,
-) {
+async function handleToolCalls(body: any, response: any, addBreadcrumb?: (title: string, data?: any) => void) {
   let currentResponse = response;
 
   while (true) {
     if (currentResponse?.error) {
-      return { error: 'Something went wrong.' } as any;
+      return { error: "Something went wrong." } as any;
     }
 
     const outputItems: any[] = currentResponse.output ?? [];
 
     // Gather all function calls in the output.
-    const functionCalls = outputItems.filter((item) => item.type === 'function_call');
+    const functionCalls = outputItems.filter((item) => item.type === "function_call");
 
     if (functionCalls.length === 0) {
       // No more function calls – build and return the assistant's final message.
-      const assistantMessages = outputItems.filter((item) => item.type === 'message');
+      const assistantMessages = outputItems.filter((item) => item.type === "message");
 
       const finalText = assistantMessages
         .map((msg: any) => {
           const contentArr = msg.content ?? [];
           return contentArr
-            .filter((c: any) => c.type === 'output_text')
+            .filter((c: any) => c.type === "output_text")
             .map((c: any) => c.text)
-            .join('');
+            .join("");
         })
-        .join('\n');
+        .join("\n");
 
       return finalText;
     }
@@ -221,13 +147,13 @@ async function handleToolCalls(
     // output to the request body as a `function_call_output` item.
     for (const toolCall of functionCalls) {
       const fName = toolCall.name;
-      const args = JSON.parse(toolCall.arguments || '{}');
+      const args = JSON.parse(toolCall.arguments || "{}");
 
       if (addBreadcrumb) {
         addBreadcrumb(`[supervisorAgent] function call: ${fName}`, args);
       }
 
-      const toolRes = getToolResponse(fName);
+      const toolRes = getToolResponse(fName, args);
 
       if (addBreadcrumb) {
         addBreadcrumb(`[supervisorAgent] function call result: ${fName}`, toolRes);
@@ -235,16 +161,16 @@ async function handleToolCalls(
 
       body.input.push(
         {
-          type: 'function_call',
+          type: "function_call",
           call_id: toolCall.call_id,
           name: toolCall.name,
           arguments: toolCall.arguments,
         },
         {
-          type: 'function_call_output',
+          type: "function_call_output",
           call_id: toolCall.call_id,
           output: JSON.stringify(toolRes),
-        },
+        }
       );
     }
 
@@ -254,19 +180,19 @@ async function handleToolCalls(
 }
 
 export const getNextResponseFromSupervisor = tool({
-  name: 'getNextResponseFromSupervisor',
+  name: "getNextResponseFromSupervisor",
   description:
-    'Determines the next response whenever the agent faces a non-trivial decision, produced by a highly intelligent supervisor agent. Returns a message describing what to do next.',
+    "Determines the next response whenever the agent faces a non-trivial decision, produced by a highly intelligent supervisor agent. Returns a message describing what to do next.",
   parameters: {
-    type: 'object',
+    type: "object",
     properties: {
       relevantContextFromLastUserMessage: {
-        type: 'string',
+        type: "string",
         description:
-          'Key information from the user described in their most recent message. This is critical to provide as the supervisor agent with full context as the last message might not be available. Okay to omit if the user message didn\'t add any new information.',
+          "Key information from the user described in their most recent message. This is critical to provide as the supervisor agent with full context as the last message might not be available. Okay to omit if the user message didn't add any new information.",
       },
     },
-    required: ['relevantContextFromLastUserMessage'],
+    required: ["relevantContextFromLastUserMessage"],
     additionalProperties: false,
   },
   execute: async (input, details) => {
@@ -274,24 +200,22 @@ export const getNextResponseFromSupervisor = tool({
       relevantContextFromLastUserMessage: string;
     };
 
-    const addBreadcrumb = (details?.context as any)?.addTranscriptBreadcrumb as
-      | ((title: string, data?: any) => void)
-      | undefined;
+    const addBreadcrumb = (details?.context as any)?.addTranscriptBreadcrumb as ((title: string, data?: any) => void) | undefined;
 
     const history: RealtimeItem[] = (details?.context as any)?.history ?? [];
-    const filteredLogs = history.filter((log) => log.type === 'message');
+    const filteredLogs = history.filter((log) => log.type === "message");
 
     const body: any = {
-      model: 'gpt-4.1',
+      model: "gpt-4.1",
       input: [
         {
-          type: 'message',
-          role: 'system',
+          type: "message",
+          role: "system",
           content: supervisorAgentInstructions,
         },
         {
-          type: 'message',
-          role: 'user',
+          type: "message",
+          role: "user",
           content: `==== Conversation History ====
           ${JSON.stringify(filteredLogs, null, 2)}
           
@@ -305,15 +229,14 @@ export const getNextResponseFromSupervisor = tool({
 
     let response = await fetchResponsesMessage(body);
     if (response.error) {
-      return { error: 'Something went wrong.' };
+      return { error: "Something went wrong." };
     }
 
     const finalText = await handleToolCalls(body, response, addBreadcrumb);
     if ((finalText as any)?.error) {
-      return { error: 'Something went wrong.' };
+      return { error: "Something went wrong." };
     }
 
     return { nextResponse: finalText as string };
   },
 });
-  
