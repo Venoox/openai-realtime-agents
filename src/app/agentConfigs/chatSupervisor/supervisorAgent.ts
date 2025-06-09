@@ -1,4 +1,5 @@
 import { RealtimeItem, tool } from "@openai/agents/realtime";
+import { randomInt } from "crypto";
 
 export const supervisorAgentInstructions = `You are an expert bus call center supervisor agent, tasked with providing real-time guidance to a more junior agent that's chatting directly with the customer. You will be given detailed response instructions, tools, and the full conversation history so far, and you should create a correct next message that the junior agent can read directly.
 
@@ -103,7 +104,7 @@ async function fetchResponsesMessage(body: any) {
 function getToolResponse(fName: string, args: any) {
   switch (fName) {
     case "checkBusTimetable":
-      return "5 minutes";
+      return `${randomInt(5) + 2} minutes`;
     default:
       return { result: true };
   }
